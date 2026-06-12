@@ -1,0 +1,417 @@
+# Unified traffic sign label taxonomy.
+#
+# Every dataset adapter maps its native class IDs onto this list via
+# configs/datasets/<dataset>.yaml. Two label sets are derived from it:
+#
+#   - classifier labels: `id` / `name` (one per entry below)
+#   - detector labels:   `category` (the small, fixed set of coarse
+#     GTSDB-style super-classes: prohibitory | mandatory | danger | other)
+#
+# Seeded 1:1 from the 43 official GTSRB/GTSDB classes (both benchmarks share
+# the same class IDs and definitions, so gtsrb_id doubles as the GTSDB id).
+# Polish-only signs will be appended here later with gtsrb_id: null.
+
+classes:
+  - id: 0
+    name: speed_limit_20
+    category: prohibitory
+    gtsrb_id: 0
+    en: "Speed limit (20 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (20 km/h)"
+    pl: "Ograniczenie prędkości do 20 km/h"
+
+  - id: 1
+    name: speed_limit_30
+    category: prohibitory
+    gtsrb_id: 1
+    en: "Speed limit (30 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (30 km/h)"
+    pl: "Ograniczenie prędkości do 30 km/h"
+
+  - id: 2
+    name: speed_limit_50
+    category: prohibitory
+    gtsrb_id: 2
+    en: "Speed limit (50 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (50 km/h)"
+    pl: "Ograniczenie prędkości do 50 km/h"
+
+  - id: 3
+    name: speed_limit_60
+    category: prohibitory
+    gtsrb_id: 3
+    en: "Speed limit (60 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (60 km/h)"
+    pl: "Ograniczenie prędkości do 60 km/h"
+
+  - id: 4
+    name: speed_limit_70
+    category: prohibitory
+    gtsrb_id: 4
+    en: "Speed limit (70 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (70 km/h)"
+    pl: "Ograniczenie prędkości do 70 km/h"
+
+  - id: 5
+    name: speed_limit_80
+    category: prohibitory
+    gtsrb_id: 5
+    en: "Speed limit (80 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (80 km/h)"
+    pl: "Ograniczenie prędkości do 80 km/h"
+
+  - id: 6
+    name: end_of_speed_limit_80
+    category: other
+    gtsrb_id: 6
+    en: "End of speed limit (80 km/h)"
+    de: "Ende der Geschwindigkeitsbegrenzung (80 km/h)"
+    pl: "Koniec ograniczenia prędkości do 80 km/h"
+
+  - id: 7
+    name: speed_limit_100
+    category: prohibitory
+    gtsrb_id: 7
+    en: "Speed limit (100 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (100 km/h)"
+    pl: "Ograniczenie prędkości do 100 km/h"
+
+  - id: 8
+    name: speed_limit_120
+    category: prohibitory
+    gtsrb_id: 8
+    en: "Speed limit (120 km/h)"
+    de: "Zulässige Höchstgeschwindigkeit (120 km/h)"
+    pl: "Ograniczenie prędkości do 120 km/h"
+
+  - id: 9
+    name: no_passing
+    category: prohibitory
+    gtsrb_id: 9
+    en: "No passing"
+    de: "Überholverbot für Kraftfahrzeuge"
+    pl: "Zakaz wyprzedzania"
+
+  - id: 10
+    name: no_passing_over_3_5t
+    category: prohibitory
+    gtsrb_id: 10
+    en: "No passing for vehicles over 3.5 metric tons"
+    de: "Überholverbot für Kraftfahrzeuge über 3,5t"
+    pl: "Zakaz wyprzedzania przez pojazdy o masie powyżej 3,5t"
+
+  - id: 11
+    name: right_of_way_at_next_intersection
+    category: danger
+    gtsrb_id: 11
+    en: "Right-of-way at the next intersection"
+    de: "Vorfahrt an der nächsten Kreuzung"
+    pl: "Skrzyżowanie z drogą podporządkowaną"
+
+  - id: 12
+    name: priority_road
+    category: other
+    gtsrb_id: 12
+    en: "Priority road"
+    de: "Vorfahrtstraße"
+    pl: "Droga z pierwszeństwem przejazdu"
+
+  - id: 13
+    name: yield
+    category: other
+    gtsrb_id: 13
+    en: "Yield"
+    de: "Vorfahrt gewähren"
+    pl: "Ustąp pierwszeństwa"
+
+  - id: 14
+    name: stop
+    category: other
+    gtsrb_id: 14
+    en: "Stop"
+    de: "Stoppschild"
+    pl: "Stop"
+
+  - id: 15
+    name: no_vehicles
+    category: prohibitory
+    gtsrb_id: 15
+    en: "No vehicles"
+    de: "Verbot für Fahrzeuge aller Art"
+    pl: "Zakaz wjazdu pojazdów"
+
+  - id: 16
+    name: vehicles_over_3_5t_prohibited
+    category: prohibitory
+    gtsrb_id: 16
+    en: "Vehicles over 3.5 metric tons prohibited"
+    de: "Verbot für Kraftfahrzeuge über 3,5t"
+    pl: "Zakaz wjazdu pojazdów o masie powyżej 3,5t"
+
+  - id: 17
+    name: no_entry
+    category: other
+    gtsrb_id: 17
+    en: "No entry"
+    de: "Verbot der Einfahrt"
+    pl: "Zakaz wjazdu"
+
+  - id: 18
+    name: general_caution
+    category: danger
+    gtsrb_id: 18
+    en: "General caution"
+    de: "Allgemeine Gefahrenstelle"
+    pl: "Inne niebezpieczeństwo"
+
+  - id: 19
+    name: dangerous_curve_left
+    category: danger
+    gtsrb_id: 19
+    en: "Dangerous curve to the left"
+    de: "Gefährliche Kurve (links)"
+    pl: "Niebezpieczny zakręt w lewo"
+
+  - id: 20
+    name: dangerous_curve_right
+    category: danger
+    gtsrb_id: 20
+    en: "Dangerous curve to the right"
+    de: "Gefährliche Kurve (rechts)"
+    pl: "Niebezpieczny zakręt w prawo"
+
+  - id: 21
+    name: double_curve
+    category: danger
+    gtsrb_id: 21
+    en: "Double curve"
+    de: "Doppelkurve"
+    pl: "Niebezpieczne zakręty"
+
+  - id: 22
+    name: bumpy_road
+    category: danger
+    gtsrb_id: 22
+    en: "Bumpy road"
+    de: "Unebene Fahrbahn"
+    pl: "Nierówna droga"
+
+  - id: 23
+    name: slippery_road
+    category: danger
+    gtsrb_id: 23
+    en: "Slippery road"
+    de: "Schleuder- oder Rutschgefahr"
+    pl: "Niebezpieczna nawierzchnia"
+
+  - id: 24
+    name: road_narrows_right
+    category: danger
+    gtsrb_id: 24
+    en: "Road narrows on the right"
+    de: "Verengung der Fahrbahn (rechts)"
+    pl: "Zwężenie jezdni - prawostronne"
+
+  - id: 25
+    name: road_work
+    category: danger
+    gtsrb_id: 25
+    en: "Road work"
+    de: "Baustelle"
+    pl: "Roboty na drodze"
+
+  - id: 26
+    name: traffic_signals
+    category: danger
+    gtsrb_id: 26
+    en: "Traffic signals"
+    de: "Lichtzeichenanlage"
+    pl: "Sygnały świetlne"
+
+  - id: 27
+    name: pedestrians
+    category: danger
+    gtsrb_id: 27
+    en: "Pedestrians"
+    de: "Fußgänger"
+    pl: "Piesi"
+
+  - id: 28
+    name: children_crossing
+    category: danger
+    gtsrb_id: 28
+    en: "Children crossing"
+    de: "Kinder"
+    pl: "Dzieci"
+
+  - id: 29
+    name: bicycles_crossing
+    category: danger
+    gtsrb_id: 29
+    en: "Bicycles crossing"
+    de: "Fahrradfahrer"
+    pl: "Rowerzyści"
+
+  - id: 30
+    name: beware_of_ice_snow
+    category: danger
+    gtsrb_id: 30
+    en: "Beware of ice/snow"
+    de: "Schnee- oder Eisglätte"
+    pl: "Oszronienie jezdni"
+
+  - id: 31
+    name: wild_animals_crossing
+    category: danger
+    gtsrb_id: 31
+    en: "Wild animals crossing"
+    de: "Wildwechsel"
+    pl: "Dzikie zwierzęta"
+
+  - id: 32
+    name: end_of_all_speed_and_passing_limits
+    category: other
+    gtsrb_id: 32
+    en: "End of all speed and passing limits"
+    de: "Ende sämtlicher Streckenverbote"
+    pl: "Koniec wszystkich zakazów"
+
+  - id: 33
+    name: turn_right_ahead
+    category: mandatory
+    gtsrb_id: 33
+    en: "Turn right ahead"
+    de: "Vorgeschriebene Fahrtrichtung rechts"
+    pl: "Nakaz jazdy w prawo"
+
+  - id: 34
+    name: turn_left_ahead
+    category: mandatory
+    gtsrb_id: 34
+    en: "Turn left ahead"
+    de: "Vorgeschriebene Fahrtrichtung links"
+    pl: "Nakaz jazdy w lewo"
+
+  - id: 35
+    name: ahead_only
+    category: mandatory
+    gtsrb_id: 35
+    en: "Ahead only"
+    de: "Vorgeschriebene Fahrtrichtung geradeaus"
+    pl: "Nakaz jazdy prosto"
+
+  - id: 36
+    name: go_straight_or_right
+    category: mandatory
+    gtsrb_id: 36
+    en: "Go straight or right"
+    de: "Vorgeschriebene Fahrtrichtung geradeaus oder rechts"
+    pl: "Nakaz jazdy prosto lub w prawo"
+
+  - id: 37
+    name: go_straight_or_left
+    category: mandatory
+    gtsrb_id: 37
+    en: "Go straight or left"
+    de: "Vorgeschriebene Fahrtrichtung geradeaus oder links"
+    pl: "Nakaz jazdy prosto lub w lewo"
+
+  - id: 38
+    name: keep_right
+    category: mandatory
+    gtsrb_id: 38
+    en: "Keep right"
+    de: "Vorbeifahrt rechts vorbei"
+    pl: "Nakaz jazdy z prawej strony znaku"
+
+  - id: 39
+    name: keep_left
+    category: mandatory
+    gtsrb_id: 39
+    en: "Keep left"
+    de: "Vorbeifahrt links vorbei"
+    pl: "Nakaz jazdy z lewej strony znaku"
+
+  - id: 40
+    name: roundabout_mandatory
+    category: mandatory
+    gtsrb_id: 40
+    en: "Roundabout mandatory"
+    de: "Kreisverkehr"
+    pl: "Ruch okrężny (rondo)"
+
+  - id: 41
+    name: end_of_no_passing
+    category: other
+    gtsrb_id: 41
+    en: "End of no passing"
+    de: "Ende des Überholverbots für Kraftfahrzeuge"
+    pl: "Koniec zakazu wyprzedzania"
+
+  - id: 42
+    name: end_of_no_passing_over_3_5t
+    category: other
+    gtsrb_id: 42
+    en: "End of no passing by vehicles over 3.5 metric tons"
+    de: "Ende des Überholverbots für Kraftfahrzeuge über 3,5t"
+    pl: "Koniec zakazu wyprzedzania dla pojazdów o masie powyżej 3,5t"
+
+  # Polish-only classes (no GTSRB/GTSDB equivalent), added from the Polish
+  # Traffic Signs Dataset's classification folders (A21, B21, B22, B23, B36,
+  # B41, D6). `category` follows the same prohibitory/mandatory/danger/other
+  # grouping as the GTSRB-based classes above, by sign shape/color family.
+  - id: 43
+    name: tram_crossing
+    category: danger
+    gtsrb_id: null
+    en: "Trams crossing"
+    de: "Kreuzung mit Straßenbahn"
+    pl: "Skrzyżowanie z linią tramwajową"
+
+  - id: 44
+    name: no_left_turn
+    category: prohibitory
+    gtsrb_id: null
+    en: "No left turn"
+    de: "Linksabbiegen verboten"
+    pl: "Zakaz skrętu w lewo"
+
+  - id: 45
+    name: no_right_turn
+    category: prohibitory
+    gtsrb_id: null
+    en: "No right turn"
+    de: "Rechtsabbiegen verboten"
+    pl: "Zakaz skrętu w prawo"
+
+  - id: 46
+    name: no_u_turn
+    category: prohibitory
+    gtsrb_id: null
+    en: "No U-turn"
+    de: "Wenden verboten"
+    pl: "Zakaz zawracania"
+
+  - id: 47
+    name: no_stopping
+    category: prohibitory
+    gtsrb_id: null
+    en: "No stopping"
+    de: "Haltverbot"
+    pl: "Zakaz zatrzymywania się"
+
+  - id: 48
+    name: no_pedestrians
+    category: prohibitory
+    gtsrb_id: null
+    en: "No pedestrians"
+    de: "Für Fußgänger verboten"
+    pl: "Zakaz ruchu pieszych"
+
+  - id: 49
+    name: pedestrian_crossing_sign
+    category: other
+    gtsrb_id: null
+    en: "Pedestrian crossing (information sign)"
+    de: "Fußgängerüberweg (Hinweiszeichen)"
+    pl: "Przejście dla pieszych (znak informacyjny)"
