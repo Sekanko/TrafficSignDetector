@@ -1,0 +1,52 @@
+# Polish Traffic Signs Dataset.
+# https://www.kaggle.com/datasets/chriskjm/polish-traffic-signs-dataset
+#
+# Layout (discovered via `python -m src.data_prep.inspect_polish`):
+#   classification/<CODE>/*.jpg   - ImageFolder-style crops, <CODE> is the
+#                                    official Polish road sign code (A1, B2, ...)
+#   detection/imgs/*.jpg + detection/labels/*.txt - YOLO format, single
+#                                    class 0 ("sign present", no fine-grained
+#                                    type) -> feeds the single-class
+#                                    "traffic_sign" detector only.
+
+name: polish
+kaggle:
+  slug: chriskjm/polish-traffic-signs-dataset
+raw_dir: polish
+
+crop_margin: 0.0
+
+# Neither classification/ nor detection/ ship a predefined split, so images
+# are assigned deterministically by filename hash (same scheme as gtsdb.yaml).
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+split_seed: 42
+
+# Maps classification/<CODE> folder name -> configs/taxonomy.yaml `id`.
+# Folders not listed here are skipped (with a logging.warning):
+#   - B33: speed-limit sign with a variable numeric value per image (e.g. 15,
+#     40 km/h) that doesn't match GTSRB's fixed speed-limit classes; would
+#     need per-image OCR to classify correctly.
+#   - other: heterogeneous grab-bag of miscellaneous signs.
+id_map:
+  A1: 19   # dangerous_curve_left
+  A2: 20   # dangerous_curve_right
+  A7: 13   # yield
+  A17: 28  # children_crossing
+  A21: 43  # tram_crossing (Polish-only)
+  A30: 18  # general_caution
+  B1: 15   # no_vehicles
+  B2: 17   # no_entry
+  B20: 14  # stop
+  B21: 44  # no_left_turn (Polish-only)
+  B22: 45  # no_right_turn (Polish-only)
+  B23: 46  # no_u_turn (Polish-only)
+  B36: 47  # no_stopping (Polish-only)
+  B41: 48  # no_pedestrians (Polish-only)
+  C2: 33   # turn_right_ahead
+  C4: 34   # turn_left_ahead
+  C12: 40  # roundabout_mandatory
+  D1: 12   # priority_road
+  D6: 49   # pedestrian_crossing_sign (Polish-only)
