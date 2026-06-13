@@ -34,7 +34,16 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
-def build_transforms(img_size: int) -> tuple[transforms.Compose, transforms.Compose]:
+def build_transforms(img_size: int, augment: bool = True) -> tuple[transforms.Compose, transforms.Compose]:
+    eval_tf = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ])
+    if not augment:
+        return eval_tf, eval_tf
+
+    # No random flips: many signs (turn arrows, etc.) are not left/right symmetric.
     train_tf = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
@@ -45,12 +54,6 @@ def build_transforms(img_size: int) -> tuple[transforms.Compose, transforms.Comp
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
-    ])
-    # No random flips: many signs (turn arrows, etc.) are not left/right symmetric.
-    eval_tf = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
     return train_tf, eval_tf
 
@@ -79,7 +82,7 @@ def run_epoch(
     correct = 0
     total = 0
 
-    progress = tqdm(loader, desc=desc, leave=False)
+    progress = tqdm(loader, desc=desc, leave=False, mininterval=1.0)
     with torch.set_grad_enabled(train):
         for images, labels in progress:
             images, labels = images.to(device), labels.to(device)
@@ -93,7 +96,7 @@ def run_epoch(
             total_loss += loss.item() * images.size(0)
             correct += (outputs.argmax(1) == labels).sum().item()
             total += images.size(0)
-            progress.set_postfix(loss=total_loss / total, acc=correct / total)
+            progress.set_postfix(loss=total_loss / total, acc=correct / total, refresh=False)
 
     return total_loss / total, correct / total
 
@@ -110,6 +113,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--img-size", type=int, default=224)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--augment", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
@@ -121,7 +125,7 @@ def main() -> None:
     taxonomy = load_taxonomy()
     num_classes = len(taxonomy)
 
-    train_tf, eval_tf = build_transforms(args.img_size)
+    train_tf, eval_tf = build_transforms(args.img_size, augment=args.augment)
     datasets = load_splits(CLASSIFICATION_DIR, train_tf, eval_tf)
     loaders = {
         split: DataLoader(
@@ -183,6 +187,7 @@ def main() -> None:
         "epochs": args.epochs,
         "learning_rate": args.lr,
         "optimizer": args.optimizer,
+        "augment": args.augment,
         "weight_decay": args.weight_decay,
         "momentum": args.momentum if args.optimizer == "sgd" else None,
         "seed": SEED,
@@ -209,7 +214,7 @@ def main() -> None:
 
     print()
     print("=" * 60)
-    print(f"Model:          {args.model} (pretrained={pretrained})")
+    print(f"Model:          {args.model} (pretrained={pretrained}, augment={args.augment})")
     print(f"Epochs:         {args.epochs}")
     print(f"Learning rate:  {args.lr}")
     print(f"Optimizer:      {optimizer_desc}")
