@@ -55,6 +55,40 @@ hiperparametrów, historię epok i metryki (accuracy/loss train/val/test, liczba
 parametrów, czas treningu) - po treningu te informacje są też wypisywane na
 konsolę.
 
+## Trening detektora YOLO11n
+
+Detektor jest trenowany jako **jednoklasowy** model `traffic_sign`. To jest
+celowe: lokalizacja znaku i rozpoznanie dokładnej klasy są rozdzielone, dzięki
+czemu można używać wspólnego zbioru detekcyjnego z GTSDB i polskiego datasetu
+nawet wtedy, gdy część źródeł ma tylko ogólne etykiety obecności znaku.
+
+```powershell
+# wymagane po zbudowaniu data/processed/detection/
+python -m src.detection.train --epochs 50 --img-size 320 --batch-size 16
+
+# szybki smoke test bez Kaggle (najpierw: python -m src.data_prep.build_smoke_detection)
+python -m src.detection.train --epochs 1 --img-size 320 --batch-size 2 --workers 0 --device cpu --sample-count 2
+
+# opcjonalnie od razu wyeksportuj model pod Flutter/TFLite
+python -m src.detection.train --epochs 50 --img-size 320 --batch-size 16 --export-tflite
+
+# wersja INT8 wymaga kalibracji na danych detekcyjnych
+python -m src.detection.train --epochs 50 --img-size 320 --batch-size 16 --export-tflite --tflite-int8
+```
+
+Skrypt startuje z wag `yolo11n.pt`, przed fine-tuningiem mierzy baseline na
+wybranym splicie (`--compare-split test` domyślnie), trenuje model, a na końcu
+liczy te same metryki dla `best.pt`. Porównanie jest **class-agnostic**, bo
+COCO-pretrained YOLO11n nie ma klasy `traffic_sign`; w tej ewaluacji liczy się,
+czy model lokalizuje znak, niezależnie od oryginalnej klasy COCO.
+
+Każdy run zapisuje się w `models/detection/yolo11n_traffic_sign_<timestamp>/`:
+
+- `weights/best.pt` - najlepsze wagi po fine-tuningu.
+- `summary.json` - hiperparametry, metryki baseline, metryki fine-tuned i delta.
+- `visualizations/` - porównania `Ground truth / YOLO11n pretrained / YOLO11n fine-tuned` na przykładowych obrazach.
+- pliki Ultralytics, np. `results.png`, macierze i krzywe metryk, jeśli zostały wygenerowane przez trening.
+
 ## Setup
 
 ```powershell
@@ -64,6 +98,7 @@ pip install -r requirements.txt
 ```
 
 Konfiguracja Kaggle API: [docs/kaggle_setup.md](docs/kaggle_setup.md).
+Trening na AMD RX 9070 XT przez WSL2/ROCm: [docs/amd_rocm_wsl.md](docs/amd_rocm_wsl.md).
 
 ## Uruchomienie pipeline'u
 
@@ -76,6 +111,13 @@ python -m src.data_prep.build_classification
 
 # 3. Budowa zbioru do detekcji (YOLO, jednoklasowy "traffic_sign")
 python -m src.data_prep.build_detection
+```
+
+Jeśli nie masz jeszcze skonfigurowanego Kaggle API, możesz wygenerować
+mały syntetyczny zbiór tylko do sprawdzenia pipeline'u treningu:
+
+```powershell
+python -m src.data_prep.build_smoke_detection
 ```
 
 `src/data_prep/inspect_polish.py` to jednorazowy skrypt diagnostyczny użyty
@@ -95,10 +137,19 @@ src/data_prep/
   inspect_polish.py       # podgląd struktury polskiego datasetu (jednorazowo)
   build_classification.py # -> data/processed/classification/
   build_detection.py      # -> data/processed/detection/ (YOLO)
+  build_smoke_detection.py # syntetyczny mini-zbiór do smoke testów
 src/classification/
   models/                 # rejestr modeli: mobilenet_v2, efficientnet_lite0, squeezenet, custom_cnn
   dataset.py              # ManifestDataset (czyta manifest.csv)
   train.py                # trening + zapis models/<model>_<timestamp>.{pt,json}
+src/detection/
+  train.py                # entrypoint fine-tuningu YOLO11n
+  cli.py                  # argumenty CLI
+  dataset.py              # odczyt obrazów i etykiet YOLO
+  predict.py              # predykcje Ultralytics
+  evaluate.py             # metryki baseline vs fine-tuned
+  visualize.py            # wizualizacje porównawcze
+  export.py               # eksport TFLite
 data/                      # (gitignored) raw/ + processed/
 models/                    # (gitignored) checkpointy + podsumowania treningów
 ```

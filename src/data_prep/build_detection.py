@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import shutil
 
 import yaml
 from PIL import Image
@@ -36,6 +37,8 @@ def build_detection() -> None:
     gtsdb = GtsdbAdapter(taxonomy)
     polish = PolishAdapter(taxonomy)
 
+    if DETECTION_DIR.exists():
+        shutil.rmtree(DETECTION_DIR)
     DETECTION_DIR.mkdir(parents=True, exist_ok=True)
     counts: dict[str, int] = {}
     for item in itertools.chain(gtsdb.detection_items(), polish.detection_items()):
@@ -67,7 +70,17 @@ def build_detection() -> None:
     with open(DETECTION_DIR / "dataset.yaml", "w", encoding="utf-8") as f:
         yaml.safe_dump(dataset_yaml, f, sort_keys=False, allow_unicode=True)
 
-    logger.info("Wrote %d detection images to %s", sum(counts.values()), DETECTION_DIR)
+    total_images = sum(counts.values())
+    if total_images == 0:
+        raise FileNotFoundError(
+            f"No detection images were written to {DETECTION_DIR}. "
+            "Download raw datasets first with "
+            "`python -m src.data_prep.download --dataset gtsdb polish`, "
+            "or generate a tiny smoke dataset with "
+            "`python -m src.data_prep.build_smoke_detection`."
+        )
+
+    logger.info("Wrote %d detection images to %s", total_images, DETECTION_DIR)
     for split, count in sorted(counts.items()):
         logger.info("  %-5s %d images", split, count)
 

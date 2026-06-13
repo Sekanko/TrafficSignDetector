@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-rocm/
 
 # Datasets (downloaded/generated, not committed)
 data/
@@ -15,3 +16,6 @@ kaggle.json
 # Editor/OS
 .vscode/
 .DS_Store
+
+# Models
+yolo*.pt
