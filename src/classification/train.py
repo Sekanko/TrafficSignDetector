@@ -39,8 +39,12 @@ def build_transforms(img_size: int) -> tuple[transforms.Compose, transforms.Comp
         transforms.Resize((img_size, img_size)),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
         transforms.RandomRotation(10),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
+        transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.5))], p=0.3),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
     ])
     # No random flips: many signs (turn arrows, etc.) are not left/right symmetric.
     eval_tf = transforms.Compose([

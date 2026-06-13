@@ -7,6 +7,7 @@ https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign
 from __future__ import annotations
 
 import logging
+import re
 from typing import Iterator
 
 import pandas as pd
@@ -23,6 +24,19 @@ logger = logging.getLogger(__name__)
 # Train.csv / Test.csv use "Roi.X1" etc., which aren't valid Python
 # identifiers - rename to access via itertuples().
 _ROI_COLUMNS = {"Roi.X1": "roi_x1", "Roi.Y1": "roi_y1", "Roi.X2": "roi_x2", "Roi.Y2": "roi_y2"}
+
+# Train.csv paths look like "Train/<ClassId>/<ClassId>_<TrackId>_<FrameId>.png".
+# Each track is ~30 near-duplicate consecutive video frames of the same
+# physical sign, so splitting must key on (ClassId, TrackId) - otherwise
+# near-identical frames of the same sign end up in both train and val.
+_TRACK_PATTERN = re.compile(r"(\d+_\d+)_\d+\.png$")
+
+
+def _track_key(path: str) -> str:
+    match = _TRACK_PATTERN.search(path)
+    if match is None:
+        raise ValueError(f"Unrecognized GTSRB train path format: {path!r}")
+    return match.group(1)
 
 
 class GtsrbAdapter(DatasetAdapter):
@@ -49,7 +63,7 @@ class GtsrbAdapter(DatasetAdapter):
 
         for row in df.itertuples(index=False):
             taxonomy_class = self.taxonomy.by_gtsrb_id(int(row.ClassId))
-            split = fixed_split or assign_split(row.Path, ratios, seed)
+            split = fixed_split or assign_split(_track_key(row.Path), ratios, seed)
             bbox = BBox(x1=row.roi_x1, y1=row.roi_y1, x2=row.roi_x2, y2=row.roi_y2)
             yield ClassificationItem(
                 image_path=self.root / row.Path,
