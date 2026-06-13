@@ -20,6 +20,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from tqdm import tqdm
 
 from src.classification.dataset import load_splits
 from src.classification.models import HAS_PRETRAINED, MODEL_NAMES, build_model
@@ -67,14 +68,16 @@ def run_epoch(
     optimizer: torch.optim.Optimizer | None,
     device: str,
     train: bool,
+    desc: str,
 ) -> tuple[float, float]:
     model.train() if train else model.eval()
     total_loss = 0.0
     correct = 0
     total = 0
 
+    progress = tqdm(loader, desc=desc, leave=False)
     with torch.set_grad_enabled(train):
-        for images, labels in loader:
+        for images, labels in progress:
             images, labels = images.to(device), labels.to(device)
             if train:
                 optimizer.zero_grad()
@@ -86,6 +89,7 @@ def run_epoch(
             total_loss += loss.item() * images.size(0)
             correct += (outputs.argmax(1) == labels).sum().item()
             total += images.size(0)
+            progress.set_postfix(loss=total_loss / total, acc=correct / total)
 
     return total_loss / total, correct / total
 
@@ -135,8 +139,10 @@ def main() -> None:
     best_val_acc = 0.0
     start_time = time.time()
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = run_epoch(model, loaders["train"], criterion, optimizer, args.device, train=True)
-        val_loss, val_acc = run_epoch(model, loaders["val"], criterion, optimizer, args.device, train=False)
+        train_desc = f"epoch {epoch:3d}/{args.epochs} [train]"
+        val_desc = f"epoch {epoch:3d}/{args.epochs} [val]"
+        train_loss, train_acc = run_epoch(model, loaders["train"], criterion, optimizer, args.device, train=True, desc=train_desc)
+        val_loss, val_acc = run_epoch(model, loaders["val"], criterion, optimizer, args.device, train=False, desc=val_desc)
         best_val_acc = max(best_val_acc, val_acc)
         print(
             f"epoch {epoch:3d}/{args.epochs}  "
@@ -152,7 +158,7 @@ def main() -> None:
         })
     training_time = time.time() - start_time
 
-    test_loss, test_acc = run_epoch(model, loaders["test"], criterion, optimizer, args.device, train=False)
+    test_loss, test_acc = run_epoch(model, loaders["test"], criterion, optimizer, args.device, train=False, desc="test")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
