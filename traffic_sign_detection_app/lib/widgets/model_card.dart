@@ -20,6 +20,9 @@ class ModelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canDownload = model.downloadUrl != null && model.downloadUrl!.isNotEmpty;
+    final canUpdate = canDownload && model.isAvailableInApi;
+
     return Card(
       color: const Color(0xFF151A21),
       child: Padding(
@@ -37,6 +40,16 @@ class ModelCard extends StatelessWidget {
                         ),
                   ),
                 ),
+                if (!model.isAvailableInApi && model.isDownloaded)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      'Lokalny',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                    ),
+                  ),
                 Text(
                   model.version,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -50,8 +63,8 @@ class ModelCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.tonal(
-                  onPressed: onDownload,
-                  child: const Text('Pobierz'),
+                  onPressed: canDownload ? onDownload : null,
+                  child: Text(canDownload ? 'Pobierz' : 'Brak adresu'),
                 ),
               )
             else
@@ -66,8 +79,10 @@ class ModelCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: onUpdate,
-                      child: const _ButtonText('Zaktualizuj'),
+                      onPressed: canUpdate ? onUpdate : null,
+                      child: _ButtonText(
+                        canUpdate ? 'Zaktualizuj' : 'Tylko lokalny',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
