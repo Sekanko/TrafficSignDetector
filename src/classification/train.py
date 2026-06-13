@@ -75,7 +75,7 @@ def run_epoch(
     correct = 0
     total = 0
 
-    progress = tqdm(loader, desc=desc, leave=False)
+    progress = tqdm(loader, desc=desc, leave=False, mininterval=1.0)
     with torch.set_grad_enabled(train):
         for images, labels in progress:
             images, labels = images.to(device), labels.to(device)
@@ -89,7 +89,7 @@ def run_epoch(
             total_loss += loss.item() * images.size(0)
             correct += (outputs.argmax(1) == labels).sum().item()
             total += images.size(0)
-            progress.set_postfix(loss=total_loss / total, acc=correct / total)
+            progress.set_postfix(loss=total_loss / total, acc=correct / total, refresh=False)
 
     return total_loss / total, correct / total
 
