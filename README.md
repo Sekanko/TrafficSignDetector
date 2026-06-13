@@ -35,6 +35,26 @@ Inne europejskie/polskie datasety rozważane na później: Mapillary Traffic
 Sign Dataset, "Traffic Road Object Detection Polish 12k", DFG Traffic Sign
 Dataset (Słowenia).
 
+## Trening klasyfikatora
+
+```powershell
+python -m src.classification.train --model mobilenet_v2 --epochs 10 --lr 1e-3
+python -m src.classification.train --model efficientnet_lite0 --epochs 10
+python -m src.classification.train --model squeezenet --epochs 10
+python -m src.classification.train --model custom_cnn --epochs 10 --no-pretrained
+```
+
+Dostępne modele (`src/classification/models/`): `mobilenet_v2`,
+`efficientnet_lite0`, `squeezenet` (wagi ImageNet) oraz `custom_cnn`
+(placeholder - mała sieć od zera, do zastąpienia własną architekturą).
+
+Każdy run zapisuje się pod unikalną nazwą `models/<model>_<timestamp>.{pt,json}`
+(katalog `models/` jest gitignored), więc kolejne treningi z innymi
+parametrami nie nadpisują poprzednich. Plik `.json` zawiera pełny zestaw
+hiperparametrów, historię epok i metryki (accuracy/loss train/val/test, liczba
+parametrów, czas treningu) - po treningu te informacje są też wypisywane na
+konsolę.
+
 ## Setup
 
 ```powershell
@@ -75,5 +95,10 @@ src/data_prep/
   inspect_polish.py       # podgląd struktury polskiego datasetu (jednorazowo)
   build_classification.py # -> data/processed/classification/
   build_detection.py      # -> data/processed/detection/ (YOLO)
+src/classification/
+  models/                 # rejestr modeli: mobilenet_v2, efficientnet_lite0, squeezenet, custom_cnn
+  dataset.py              # ManifestDataset (czyta manifest.csv)
+  train.py                # trening + zapis models/<model>_<timestamp>.{pt,json}
 data/                      # (gitignored) raw/ + processed/
+models/                    # (gitignored) checkpointy + podsumowania treningów
 ```

@@ -6,6 +6,9 @@ __pycache__/
 # Datasets (downloaded/generated, not committed)
 data/
 
+# Trained model checkpoints + run summaries
+/models/
+
 # Kaggle credentials
 kaggle.json
 
