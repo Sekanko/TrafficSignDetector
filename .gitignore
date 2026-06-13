@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Datasets (downloaded/generated, not committed)
+data/
+
+# Trained model checkpoints + run summaries
+/models/
+
+# Kaggle credentials
+kaggle.json
+
+# Editor/OS
+.vscode/
+.DS_Store

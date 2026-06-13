@@ -1,0 +1,19 @@
+# GTSRB - German Traffic Sign Recognition Benchmark (classification only).
+# https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign
+#
+# Native ClassId (0-42) maps 1:1 onto configs/taxonomy.yaml via each entry's
+# `gtsrb_id` field (Taxonomy.by_gtsrb_id) - no separate id_map needed here.
+
+name: gtsrb
+kaggle:
+  slug: meowmeowmeowmeowmeow/gtsrb-german-traffic-sign
+raw_dir: gtsrb
+
+# GTSRB images are already cropped tightly to the Roi.* columns, so no extra
+# margin is added when producing classification crops.
+crop_margin: 0.0
+
+# Train.csv is split into train/val with this fraction held out for val.
+# Test.csv rows always become split="test".
+val_fraction: 0.1
+split_seed: 42

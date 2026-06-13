@@ -1,0 +1,21 @@
+# GTSDB - German Traffic Sign Detection Benchmark (detection).
+# Same 43 classes/IDs as GTSRB, so it also maps onto configs/taxonomy.yaml
+# via `gtsrb_id` (Taxonomy.by_gtsrb_id) - no separate id_map needed here.
+#
+# Kaggle mirrors of this dataset vary in layout (raw gt.txt+ppm vs.
+# pre-converted YOLO). src/data_prep/adapters/gtsdb.py auto-detects which
+# layout is present under data/raw/gtsdb/, so this slug can be swapped for
+# another mirror without code changes.
+
+name: gtsdb
+kaggle:
+  slug: safabouguezzi/german-traffic-sign-detection-benchmark-gtsdb
+raw_dir: gtsdb
+
+# GTSDB ships with no predefined split, so images are assigned
+# deterministically by filename hash.
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+split_seed: 42
