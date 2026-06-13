@@ -1,5 +1,9 @@
-"""Adapter for GTSDB - German Traffic Sign Detection Benchmark (detection;
-also a source of extra classification crops via build_classification.py).
+"""Adapter for GTSDB - German Traffic Sign Detection Benchmark (detection
+only - see build_detection.py).
+
+Its bounding-box crops cover the same 43 classes as GTSRB and largely
+duplicate images already in GTSRB (both come from the same underlying
+recordings), so GTSDB is not used as a classification source.
 
 Kaggle mirrors of GTSDB vary in layout, so this adapter auto-detects between:
 

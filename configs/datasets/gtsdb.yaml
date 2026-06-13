@@ -12,10 +12,6 @@ kaggle:
   slug: safabouguezzi/german-traffic-sign-detection-benchmark-gtsdb
 raw_dir: gtsdb
 
-# Extra context added around each bounding box when cropping it out for the
-# classification dataset (fraction of box width/height on each side).
-crop_margin: 0.15
-
 # GTSDB ships with no predefined split, so images are assigned
 # deterministically by filename hash.
 split_ratios:

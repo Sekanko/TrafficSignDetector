@@ -1,11 +1,14 @@
 """Builds data/processed/classification/ from all dataset adapters.
 
 For every (image, optional bbox, taxonomy class, split) item produced by the
-adapters - including one extra item per GTSDB bounding box, so detection
-images also feed the classifier - crops the image to its bbox (expanded by
-the source dataset's configured margin), or keeps the full image if no bbox
-is given, and saves it under
-data/processed/classification/<split>/<taxonomy_name>/.
+adapters, crops the image to its bbox (expanded by the source dataset's
+configured margin), or keeps the full image if no bbox is given, and saves it
+under data/processed/classification/<split>/<taxonomy_name>/.
+
+GTSDB is intentionally excluded here: its bounding-box crops cover the same
+43 classes as GTSRB and largely duplicate images already in GTSRB (same
+underlying recordings), so it's used for detection only (see
+build_detection.py).
 
 Also writes manifest.csv listing every output file with its labels, for
 traceability and for building a PyTorch dataset without relying on folder
@@ -21,12 +24,10 @@ import csv
 import itertools
 import logging
 from pathlib import Path
-from typing import Iterator
 
 from PIL import Image
 
 from src.data_prep.adapters.base import ClassificationItem
-from src.data_prep.adapters.gtsdb import GtsdbAdapter
 from src.data_prep.adapters.gtsrb import GtsrbAdapter
 from src.data_prep.adapters.polish import PolishAdapter
 from src.data_prep.config import load_dataset_config
@@ -34,19 +35,6 @@ from src.data_prep.paths import CLASSIFICATION_DIR
 from src.data_prep.taxonomy import Taxonomy, load_taxonomy
 
 logger = logging.getLogger(__name__)
-
-
-def _gtsdb_crops(adapter: GtsdbAdapter) -> Iterator[ClassificationItem]:
-    """Turn each GTSDB detection box into a classification crop."""
-    for item in adapter.detection_items():
-        for bbox, taxonomy_id in item.boxes:
-            yield ClassificationItem(
-                image_path=item.image_path,
-                taxonomy_id=taxonomy_id,
-                split=item.split,
-                source=adapter.name,
-                bbox=bbox,
-            )
 
 
 def _save_item(item: ClassificationItem, taxonomy: Taxonomy, index: int) -> Path | None:
@@ -73,12 +61,10 @@ def build_classification() -> None:
     taxonomy = load_taxonomy()
     gtsrb = GtsrbAdapter(taxonomy)
     polish = PolishAdapter(taxonomy)
-    gtsdb = GtsdbAdapter(taxonomy)
 
     all_items = itertools.chain(
         gtsrb.classification_items(),
         polish.classification_items(),
-        _gtsdb_crops(gtsdb),
     )
 
     CLASSIFICATION_DIR.mkdir(parents=True, exist_ok=True)

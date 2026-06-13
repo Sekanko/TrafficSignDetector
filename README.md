@@ -10,7 +10,7 @@ taksonomię (`configs/taxonomy.yaml`, **50 klas**: 43 z GTSRB/GTSDB + 7
 unikalnych dla polskich znaków) i generuje dwa zbiory wyjściowe:
 
 - `data/processed/classification/` - wycięte znaki, pogrupowane po
-  unifikowanej klasie (format `ImageFolder` dla PyTorch). **54 623 obrazy**
+  unifikowanej klasie (format `ImageFolder` dla PyTorch). **53 771 obrazów**
   (train/val/test).
 - `data/processed/detection/` - pełne zdjęcia + etykiety YOLO, do trenowania
   detektora. Detektor jest **jednoklasowy** (`traffic_sign`) - tylko
@@ -23,8 +23,8 @@ unikalnych dla polskich znaków) i generuje dwa zbiory wyjściowe:
 
 | Dataset | Źródło | Rola |
 |---|---|---|
-| GTSRB | [Kaggle](https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign) | klasyfikacja (43 klasy) |
-| GTSDB | [Kaggle](https://www.kaggle.com/datasets/safabouguezzi/german-traffic-sign-detection-benchmark-gtsdb) | detekcja (te same 43 klasy) + dodatkowe wycinki do klasyfikacji |
+| GTSRB | [Kaggle](https://www.kaggle.com/datasets/meowmeowmeowmeowmeow/gtsrb-german-traffic-sign) | klasyfikacja (43 klasy), wycinki kadrowane wg `Roi.*` z `Train.csv`/`Test.csv` |
+| GTSDB | [Kaggle](https://www.kaggle.com/datasets/safabouguezzi/german-traffic-sign-detection-benchmark-gtsdb) | tylko detekcja (600 pełnych scen ulicznych) - nieużywane do klasyfikacji, bo jego wycinki w ~47% duplikują obrazy z GTSRB (te same nagrania) |
 | Polish Traffic Signs Dataset | [Kaggle](https://www.kaggle.com/datasets/chriskjm/polish-traffic-signs-dataset) | klasyfikacja (19 polskich kodów znaków zmapowanych w `configs/datasets/polish.yaml`, w tym 7 nowych klas bez odpowiednika w GTSRB) + własny zbiór detekcyjny (1515 zdjęć, jednoklasowy) |
 
 Pominięte foldery polskiego datasetu: `B33` (ograniczenie prędkości ze
