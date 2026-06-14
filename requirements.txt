@@ -12,3 +12,6 @@ tqdm
 torch
 torchvision
 timm
+
+# Training/inference (detection).
+ultralytics

@@ -15,3 +15,9 @@ kaggle.json
 # Editor/OS
 .vscode/
 .DS_Store
+
+# Downloaded YOLO base weights
+yolo*.pt
+
+# Pipeline demo outputs
+/outputs/
