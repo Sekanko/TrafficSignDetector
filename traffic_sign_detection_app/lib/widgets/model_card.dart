@@ -20,8 +20,13 @@ class ModelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canDownload = model.downloadUrl != null && model.downloadUrl!.isNotEmpty;
-    final canUpdate = canDownload && model.isAvailableInApi;
+    final canDownload = model.canDownloadFromApi;
+    final canUpdate = model.hasUpdate;
+    final statusText = canUpdate
+        ? 'Zaktualizuj'
+        : model.isAvailableInApi
+        ? 'Aktualny'
+        : 'Tylko lokalny';
 
     return Card(
       color: const Color(0xFF151A21),
@@ -36,8 +41,8 @@ class ModelCard extends StatelessWidget {
                   child: Text(
                     model.name,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 if (!model.isAvailableInApi && model.isDownloaded)
@@ -46,17 +51,37 @@ class ModelCard extends StatelessWidget {
                     child: Text(
                       'Lokalny',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                if (model.hasUpdate)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      'Aktualizacja',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 Text(
                   model.version,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              model.isPipeline
+                  ? 'Detektor znaków drogowych'
+                  : 'Pojedynczy model detekcji',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 14),
             if (!model.isDownloaded)
@@ -73,6 +98,12 @@ class ModelCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: model.isSelected ? null : onUse,
+                      style: model.isSelected
+                          ? FilledButton.styleFrom(
+                              disabledBackgroundColor: Colors.green.shade700,
+                              disabledForegroundColor: Colors.white,
+                            )
+                          : null,
                       child: _ButtonText(model.isSelected ? 'Aktywny' : 'Użyj'),
                     ),
                   ),
@@ -80,9 +111,14 @@ class ModelCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: canUpdate ? onUpdate : null,
-                      child: _ButtonText(
-                        canUpdate ? 'Zaktualizuj' : 'Tylko lokalny',
-                      ),
+                      style: canUpdate
+                          ? OutlinedButton.styleFrom(
+                              backgroundColor: Colors.amber.shade600,
+                              foregroundColor: Colors.black,
+                              side: BorderSide(color: Colors.amber.shade600),
+                            )
+                          : null,
+                      child: _ButtonText(statusText),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -108,12 +144,6 @@ class _ButtonText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Text(
-        text,
-        maxLines: 1,
-      ),
-    );
+    return FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1));
   }
 }

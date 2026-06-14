@@ -78,6 +78,57 @@ python -m src.data_prep.build_classification
 python -m src.data_prep.build_detection
 ```
 
+## API modeli dla aplikacji Flutter
+
+Lokalne API wystawia listę dostępnych modeli TFLite oraz pliki do pobrania
+przez aplikację mobilną:
+
+```powershell
+uvicorn src.api.main:app --reload
+```
+
+Endpointy:
+
+- `GET /health` - prosty healthcheck
+- `GET /models` - lista modeli dla aplikacji
+- `GET /models/{id}/download` - pobranie konkretnego pliku `.tflite`
+
+Modele należy umieścić w `models/api/` (katalog `models/` jest gitignored).
+API automatycznie wykrywa pliki `*.tflite`. Opcjonalnie obok modelu można
+dodać plik metadanych o tej samej nazwie, np. `traffic_sign_detector.json`:
+
+```json
+{
+  "id": "traffic_sign_detector",
+  "name": "Traffic Sign Detector",
+  "version": "v1.0.0",
+  "inputSize": 320,
+  "confidenceThreshold": 0.45,
+  "labels": ["Ograniczenie prędkości", "Stop"]
+}
+```
+
+Jeśli metadane nie istnieją, API użyje domyślnych etykiet z
+`configs/taxonomy.yaml`.
+
+Dla pipeline'u YOLO + MobileNet przygotowany jest lokalny katalog:
+
+```
+models/api/traffic_sign_pipeline_v1/
+  model.json
+  detector_yolo.tflite
+  classifier_mobilenet.tflite
+```
+
+Do tego katalogu należy wkleić:
+
+- `detector_yolo.tflite` - wyeksportowany do TFLite detektor YOLO, najlepiej
+  po treningu `src.detection.train --export-tflite`; model powinien zwracać
+  bounding boxy znaków i przyjmować wejście 320x320.
+- `classifier_mobilenet.tflite` - wyeksportowany do TFLite klasyfikator
+  MobileNet z etykietami zgodnymi z kolejnością `configs/taxonomy.yaml`;
+  oczekiwany rozmiar wejścia w szablonie to 224x224.
+
 `src/data_prep/inspect_polish.py` to jednorazowy skrypt diagnostyczny użyty
 do odkrycia struktury polskiego datasetu (wynik już wpisany do
 `configs/datasets/polish.yaml`'s `id_map`) - nie jest częścią normalnego
@@ -99,6 +150,8 @@ src/classification/
   models/                 # rejestr modeli: mobilenet_v2, efficientnet_lite0, squeezenet, custom_cnn
   dataset.py              # ManifestDataset (czyta manifest.csv)
   train.py                # trening + zapis models/<model>_<timestamp>.{pt,json}
+src/api/
+  main.py                 # FastAPI: /models + download plików .tflite
 data/                      # (gitignored) raw/ + processed/
 models/                    # (gitignored) checkpointy + podsumowania treningów
 ```

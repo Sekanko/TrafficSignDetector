@@ -15,3 +15,8 @@ timm
 
 # Training/inference (detection).
 ultralytics
+
+# Local API for serving mobile models.
+fastapi
+python-multipart
+uvicorn

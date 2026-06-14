@@ -18,6 +18,9 @@ kaggle.json
 
 # Downloaded YOLO base weights
 yolo*.pt
+*.tflite
 
 # Pipeline demo outputs
 /outputs/
+
+build/

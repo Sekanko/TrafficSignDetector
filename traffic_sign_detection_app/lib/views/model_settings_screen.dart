@@ -47,8 +47,7 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
     await _runModelAction(() async {
       await _modelService.downloadModel(model);
       final downloadedModel = _modelService.availableModels.firstWhere(
-        (candidate) =>
-            candidate.name == model.name && candidate.version == model.version,
+        (candidate) => candidate.name == model.name,
         orElse: () => model,
       );
       if (downloadedModel.isDownloaded) {
@@ -91,8 +90,9 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
                       content: Text(fetchError),
                       actions: [
                         TextButton(
-                          onPressed:
-                              _isFetchingModels ? null : _retryFetchModels,
+                          onPressed: _isFetchingModels
+                              ? null
+                              : _retryFetchModels,
                           child: const Text('Spróbuj ponownie'),
                         ),
                       ],
@@ -106,7 +106,7 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
                                 fetchError == null
                                     ? 'Brak dostępnych modeli.'
                                     : 'Brak modeli z API.\n'
-                                        'Adres: ${ModelService.defaultModelsApiUri}',
+                                          'Adres: ${ModelService.defaultModelsApiUri}',
                                 textAlign: TextAlign.center,
                               ),
                             ),

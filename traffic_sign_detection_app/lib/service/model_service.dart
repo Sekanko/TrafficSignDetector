@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -25,16 +26,22 @@ class ModelService extends ChangeNotifier {
       return Uri.parse(_configuredModelsApiUrl);
     }
 
-    final host = Platform.isAndroid ? '10.0.2.2' : 'localhost';
+    // Physical Android + `adb reverse tcp:8000 tcp:8000` reaches the host via
+    // 127.0.0.1. Android emulator needs:
+    // --dart-define=MODELS_API_URL=http://10.0.2.2:8000/models
+    final host = Platform.isAndroid ? '127.0.0.1' : 'localhost';
     return Uri.parse('http://$host:8000/models');
   }
 
-  final HttpClient _httpClient = HttpClient()
-    ..connectionTimeout = const Duration(seconds: 3);
+  static const _apiTimeout = Duration(seconds: 15);
+  static const _removedModelNames = {'Traffic Sign YOLO All'};
 
-  Interpreter? _interpreter;
+  final HttpClient _httpClient = HttpClient()..connectionTimeout = _apiTimeout;
+
+  Interpreter? _detectorInterpreter;
+  Interpreter? _classifierInterpreter;
   AvailableModelPreview? _currentModel;
-  List<AvailableModelPreview> _availableModels = _fallbackModels;
+  List<AvailableModelPreview> _availableModels = const [];
   bool _isInitialized = false;
   bool _isBusy = false;
   String? _lastError;
@@ -44,7 +51,8 @@ class ModelService extends ChangeNotifier {
 
   AvailableModelPreview? get currentModel => _currentModel;
 
-  bool get hasLoadedModel => _interpreter != null;
+  bool get hasLoadedModel =>
+      _detectorInterpreter != null && _classifierInterpreter != null;
 
   bool get isBusy => _isBusy;
 
@@ -57,14 +65,7 @@ class ModelService extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      if (modelsApiUri == null) {
-        final localModels = await _loadDownloadedModelsRegistry();
-        _availableModels = await _markDownloadedModels(
-          _mergeApiAndLocalModels(_fallbackModels, localModels),
-        );
-      } else {
-        await fetchAvailableModels(modelsApiUri);
-      }
+      await fetchAvailableModels(modelsApiUri ?? defaultModelsApiUri);
 
       final selectedModel = _availableModels
           .cast<AvailableModelPreview?>()
@@ -82,7 +83,6 @@ class ModelService extends ChangeNotifier {
       }
 
       _isInitialized = true;
-      _lastError = null;
     } catch (error) {
       _lastError = 'Nie udało się zainicjalizować modeli: $error';
     } finally {
@@ -95,26 +95,24 @@ class ModelService extends ChangeNotifier {
 
     try {
       apiModels = await _fetchModelsFromApi(apiUri);
-      if (apiModels.isEmpty) {
-        apiModels = List.of(_fallbackModels);
-      }
       _lastError = null;
     } catch (error) {
-      _lastError = 'Nie udało się pobrać listy modeli z API: $error';
+      _lastError = 'Nie udało się pobrać listy modeli z API ($apiUri): $error';
     }
 
     final localModels = await _loadDownloadedModelsRegistry();
     _availableModels = await _markDownloadedModels(
-      _mergeApiAndLocalModels(apiModels, localModels),
+      _mergeApiAndLocalModels(
+        _supportedModels(apiModels),
+        _supportedModels(localModels),
+      ),
     );
     notifyListeners();
   }
 
   Future<List<AvailableModelPreview>> _fetchModelsFromApi(Uri apiUri) async {
-    final request = await _httpClient
-        .getUrl(apiUri)
-        .timeout(const Duration(seconds: 3));
-    final response = await request.close().timeout(const Duration(seconds: 3));
+    final request = await _httpClient.getUrl(apiUri).timeout(_apiTimeout);
+    final response = await request.close().timeout(_apiTimeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
@@ -126,7 +124,7 @@ class ModelService extends ChangeNotifier {
     final body = await response
         .transform(utf8.decoder)
         .join()
-        .timeout(const Duration(seconds: 3));
+        .timeout(_apiTimeout);
     final decoded = jsonDecode(body);
     final rawModels = decoded is List<dynamic>
         ? decoded
@@ -141,6 +139,18 @@ class ModelService extends ChangeNotifier {
   }
 
   Future<void> downloadModel(AvailableModelPreview model) async {
+    if (!model.isPipeline || _isRemovedModel(model)) {
+      _lastError =
+          'Aplikacja obsługuje tylko pipeline detektor + klasyfikator.';
+      notifyListeners();
+      return;
+    }
+
+    if (model.modelFiles.isNotEmpty) {
+      await _downloadModelBundle(model);
+      return;
+    }
+
     if (model.downloadUrl == null || model.downloadUrl!.isEmpty) {
       _lastError =
           'Model ${model.name} nie ma skonfigurowanego adresu pobrania.';
@@ -170,6 +180,7 @@ class ModelService extends ChangeNotifier {
         path: file.path,
         isDownloaded: true,
         isAvailableInApi: true,
+        hasUpdate: false,
       );
       _replaceModel(model, downloadedModel);
       await _saveDownloadedModelToRegistry(downloadedModel);
@@ -181,6 +192,70 @@ class ModelService extends ChangeNotifier {
     }
   }
 
+  Future<void> _downloadModelBundle(AvailableModelPreview model) async {
+    final missingDownload = model.modelFiles.entries
+        .where((entry) => entry.value.downloadUrl.isEmpty)
+        .map((entry) => entry.key)
+        .toList();
+    if (missingDownload.isNotEmpty) {
+      _lastError =
+          'Model ${model.name} nie ma adresów pobrania dla: ${missingDownload.join(', ')}.';
+      notifyListeners();
+      return;
+    }
+
+    _setBusy(true);
+    try {
+      final bundleDirectory = await _modelBundleDirectory(model);
+      final downloadedFiles = <String, AvailableModelFile>{};
+
+      for (final entry in model.modelFiles.entries) {
+        final fileMetadata = entry.value;
+        final localFile = File(
+          '${bundleDirectory.path}/${_safeFileName(fileMetadata.path)}',
+        );
+        await _downloadToFile(Uri.parse(fileMetadata.downloadUrl), localFile);
+        downloadedFiles[entry.key] = fileMetadata.copyWith(
+          path: localFile.path,
+        );
+      }
+
+      final downloadedModel = model.copyWith(
+        path: bundleDirectory.path,
+        modelFiles: downloadedFiles,
+        isDownloaded: true,
+        isAvailableInApi: true,
+        hasUpdate: false,
+      );
+      _replaceModel(model, downloadedModel);
+      await _saveDownloadedModelToRegistry(downloadedModel);
+      await loadModel(downloadedModel);
+      _lastError = null;
+    } catch (error) {
+      _lastError = 'Nie udało się pobrać modelu ${model.name}: $error';
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  Future<void> _downloadToFile(Uri uri, File file) async {
+    final request = await _httpClient.getUrl(uri);
+    final response = await request.close();
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException(
+        'Pobieranie modelu zwróciło status ${response.statusCode}',
+        uri: uri,
+      );
+    }
+
+    final bytes = await consolidateHttpClientResponseBytes(response);
+    if (!await file.parent.exists()) {
+      await file.parent.create(recursive: true);
+    }
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
   Future<void> deleteModel(AvailableModelPreview model) async {
     if (model.isBundledAsset) {
       _lastError = 'Model wbudowany w aplikację nie może zostać usunięty.';
@@ -190,14 +265,20 @@ class ModelService extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      final file = File(model.path);
-      if (await file.exists()) {
-        await file.delete();
+      if (model.modelFiles.isNotEmpty) {
+        final directory = Directory(model.path);
+        if (await directory.exists()) {
+          await directory.delete(recursive: true);
+        }
+      } else {
+        final file = File(model.path);
+        if (await file.exists()) {
+          await file.delete();
+        }
       }
 
       if (_currentModel != null && _isSameModel(_currentModel!, model)) {
-        _interpreter?.close();
-        _interpreter = null;
+        _closeInterpreters();
         _currentModel = null;
       }
 
@@ -211,11 +292,7 @@ class ModelService extends ChangeNotifier {
       } else {
         _availableModels = _availableModels
             .where((candidate) => !_isSameModel(candidate, model))
-            .map(
-              (candidate) => candidate.copyWith(
-                isSelected: false,
-              ),
-            )
+            .map((candidate) => candidate.copyWith(isSelected: false))
             .toList();
         notifyListeners();
       }
@@ -228,6 +305,13 @@ class ModelService extends ChangeNotifier {
   }
 
   Future<void> loadModel(AvailableModelPreview model) async {
+    if (!model.isPipeline || _isRemovedModel(model)) {
+      _lastError =
+          'Aplikacja obsługuje tylko pipeline detektor + klasyfikator.';
+      notifyListeners();
+      return;
+    }
+
     if (!model.isDownloaded) {
       await downloadModel(model);
       final downloadedModel = _availableModels.firstWhere(
@@ -242,20 +326,17 @@ class ModelService extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      final nextInterpreter = model.isBundledAsset
-          ? await Interpreter.fromAsset(model.path)
-          : Interpreter.fromFile(File(model.path));
-
-      _interpreter?.close();
-      _interpreter = nextInterpreter;
+      await _loadPipelineModel(model);
       _currentModel = model.copyWith(isSelected: true);
       _availableModels = _availableModels
           .map(
-            (candidate) => candidate.copyWith(
-              isSelected: _isSameModel(candidate, model),
-            ),
+            (candidate) =>
+                candidate.copyWith(isSelected: _isSameModel(candidate, model)),
           )
           .toList();
+      if (model.isDownloaded) {
+        await _updateSelectedInRegistry(model);
+      }
       _lastError = null;
     } catch (error) {
       _lastError = 'Nie udało się załadować modelu ${model.name}: $error';
@@ -264,38 +345,42 @@ class ModelService extends ChangeNotifier {
     }
   }
 
-  Future<List<DetectedSignPreview>> predict(CameraImage image) async {
-    final interpreter = _interpreter;
+  Future<void> _loadPipelineModel(AvailableModelPreview model) async {
+    final detectorFile = model.modelFiles['detector'];
+    final classifierFile = model.modelFiles['classifier'];
+    if (detectorFile == null || classifierFile == null) {
+      throw StateError('Pakiet modelu nie zawiera detektora i klasyfikatora.');
+    }
+
+    final nextDetector = Interpreter.fromFile(
+      File(detectorFile.path),
+      options: _interpreterOptions(),
+    );
+    final nextClassifier = Interpreter.fromFile(
+      File(classifierFile.path),
+      options: _interpreterOptions(),
+    );
+
+    _closeInterpreters();
+    _detectorInterpreter = nextDetector;
+    _classifierInterpreter = nextClassifier;
+  }
+
+  Future<List<DetectedSignPreview>> predict(
+    CameraImage image, {
+    int rotationDegrees = 0,
+  }) async {
     final model = _currentModel;
-    if (interpreter == null || model == null) {
+    if (model == null) {
       return const [];
     }
 
     try {
-      final inputTensor = interpreter.getInputTensor(0);
-      final inputShape = inputTensor.shape;
-      final input = ModelInputConverter.cameraImageToInput(
-        image: image,
-        inputShape: inputShape,
-        fallbackSize: model.inputSize,
-        type: inputTensor.type,
-      );
-      if (input == null) {
+      if (!model.isPipeline) {
         return const [];
       }
 
-      final outputTensors = interpreter.getOutputTensors();
-      final outputs = <int, Object>{
-        for (var index = 0; index < outputTensors.length; index++)
-          index: ModelInputConverter.emptyTensorData(
-            outputTensors[index].shape,
-            outputTensors[index].type,
-          ),
-      };
-
-      interpreter.runForMultipleInputs([input], outputs);
-
-      return DetectionOutputParser.parse(outputs, model);
+      return _predictPipeline(image, model, rotationDegrees: rotationDegrees);
     } catch (error) {
       _lastError = 'Predykcja nie powiodła się: $error';
       notifyListeners();
@@ -303,9 +388,78 @@ class ModelService extends ChangeNotifier {
     }
   }
 
+  Future<List<DetectedSignPreview>> _predictPipeline(
+    CameraImage image,
+    AvailableModelPreview model, {
+    required int rotationDegrees,
+  }) async {
+    final detector = _detectorInterpreter;
+    final classifier = _classifierInterpreter;
+    if (detector == null || classifier == null) {
+      return const [];
+    }
+
+    final detectorInputTensor = detector.getInputTensor(0);
+    final detectorInput = ModelInputConverter.cameraImageToInput(
+      image: image,
+      inputShape: detectorInputTensor.shape,
+      fallbackSize: model.modelFiles['detector']?.inputSize ?? model.inputSize,
+      type: detectorInputTensor.type,
+      rotationDegrees: rotationDegrees,
+    );
+    if (detectorInput == null) {
+      return const [];
+    }
+
+    final detectorOutputs = _emptyOutputs(detector);
+    detector.runForMultipleInputs([detectorInput], detectorOutputs);
+
+    final candidates = DetectionOutputParser.parseDetectorCandidates(
+      detectorOutputs,
+      0.20,
+    ).take(5).toList();
+    if (candidates.isEmpty) {
+      return const [];
+    }
+
+    final classifierInputTensor = classifier.getInputTensor(0);
+    final results = <DetectedSignPreview>[];
+    for (final candidate in candidates) {
+      final classifierInput = ModelInputConverter.cameraImageCropToInput(
+        image: image,
+        crop: _expandedRect(candidate.boundingBox, margin: 0.1),
+        inputShape: classifierInputTensor.shape,
+        fallbackSize: model.modelFiles['classifier']?.inputSize ?? 224,
+        type: classifierInputTensor.type,
+        rotationDegrees: rotationDegrees,
+      );
+      if (classifierInput == null) {
+        continue;
+      }
+
+      final classifierOutputs = _emptyOutputs(classifier);
+      classifier.runForMultipleInputs([classifierInput], classifierOutputs);
+      final classification = DetectionOutputParser.parseClassification(
+        classifierOutputs[0],
+      );
+      if (classification == null) {
+        continue;
+      }
+
+      results.add(
+        DetectedSignPreview(
+          label: _labelForClass(model, classification.$1),
+          confidence: classification.$2,
+          boundingBox: candidate.boundingBox,
+        ),
+      );
+    }
+
+    return results;
+  }
+
   void disposeService() {
-    _interpreter?.close();
-    _interpreter = null;
+    _closeInterpreters();
     _httpClient.close(force: true);
   }
 
@@ -318,6 +472,28 @@ class ModelService extends ChangeNotifier {
           return model.copyWith(isDownloaded: true);
         }
 
+        if (model.hasUpdate) {
+          return model.copyWith(isDownloaded: true);
+        }
+
+        if (model.modelFiles.isNotEmpty) {
+          final bundleDirectory = await _modelBundleDirectory(model);
+          final localFiles = model.modelFiles.map(
+            (role, file) => MapEntry(
+              role,
+              file.copyWith(
+                path: '${bundleDirectory.path}/${_safeFileName(file.path)}',
+              ),
+            ),
+          );
+          final isDownloaded = await _allModelFilesExist(localFiles);
+          return model.copyWith(
+            path: bundleDirectory.path,
+            modelFiles: localFiles,
+            isDownloaded: isDownloaded,
+          );
+        }
+
         final file = File(model.path);
         if (await file.exists()) {
           return model.copyWith(isDownloaded: true);
@@ -328,7 +504,9 @@ class ModelService extends ChangeNotifier {
         }
 
         final modelsDirectory = await _modelsDirectory();
-        final localFile = File('${modelsDirectory.path}/${_modelFileName(model)}');
+        final localFile = File(
+          '${modelsDirectory.path}/${_modelFileName(model)}',
+        );
         return model.copyWith(
           path: localFile.path,
           isDownloaded: await localFile.exists(),
@@ -344,6 +522,17 @@ class ModelService extends ChangeNotifier {
       await modelsDirectory.create(recursive: true);
     }
     return modelsDirectory;
+  }
+
+  Future<Directory> _modelBundleDirectory(AvailableModelPreview model) async {
+    final modelsDirectory = await _modelsDirectory();
+    final bundleDirectory = Directory(
+      '${modelsDirectory.path}/${_safeModelDirectoryName(model)}',
+    );
+    if (!await bundleDirectory.exists()) {
+      await bundleDirectory.create(recursive: true);
+    }
+    return bundleDirectory;
   }
 
   Future<File> _registryFile() async {
@@ -390,9 +579,8 @@ class ModelService extends ChangeNotifier {
         isAvailableInApi: false,
         isDownloaded: true,
         downloadUrl: null,
-        isSelected: false,
       );
-      if (await File(model.path).exists()) {
+      if (await _modelStorageExists(model)) {
         models.add(model);
       }
     }
@@ -405,11 +593,8 @@ class ModelService extends ChangeNotifier {
   ) async {
     final entries = await _readRegistryRaw();
     final updatedEntries = [
-      ...entries.where(
-        (entry) =>
-            entry['name'] != model.name || entry['version'] != model.version,
-      ),
-      model.copyWith(isDownloaded: true, isSelected: false).toJson(),
+      ...entries.where((entry) => entry['name'] != model.name),
+      _toRegistryEntry(model.copyWith(isDownloaded: true, isSelected: false)),
     ];
     await _writeRegistryRaw(updatedEntries);
   }
@@ -419,10 +604,7 @@ class ModelService extends ChangeNotifier {
   ) async {
     final entries = await _readRegistryRaw();
     final updatedEntries = entries
-        .where(
-          (entry) =>
-              entry['name'] != model.name || entry['version'] != model.version,
-        )
+        .where((entry) => entry['name'] != model.name)
         .toList();
     await _writeRegistryRaw(updatedEntries);
   }
@@ -441,12 +623,40 @@ class ModelService extends ChangeNotifier {
       final key = _modelKey(localModel);
       final existing = merged[key];
       if (existing != null) {
+        final mergedFiles = existing.modelFiles.map((role, apiFile) {
+          final localFile = localModel.modelFiles[role];
+          return MapEntry(
+            role,
+            apiFile.copyWith(path: localFile?.path ?? apiFile.path),
+          );
+        });
+
+        if (existing.version != localModel.version) {
+          merged[key] = existing.copyWith(
+            path: localModel.path,
+            modelFiles: mergedFiles.isNotEmpty
+                ? mergedFiles
+                : localModel.modelFiles,
+            isDownloaded: true,
+            isSelected: localModel.isSelected,
+            hasUpdate: true,
+          );
+          continue;
+        }
+
         merged[key] = existing.copyWith(
           path: localModel.path,
           isDownloaded: true,
-          labels: localModel.labels.isNotEmpty ? localModel.labels : existing.labels,
-          inputSize: localModel.inputSize,
-          confidenceThreshold: localModel.confidenceThreshold,
+          isSelected: localModel.isSelected || existing.isSelected,
+          hasUpdate: false,
+          labels: localModel.labels.isNotEmpty
+              ? localModel.labels
+              : existing.labels,
+          modelFiles: mergedFiles.isNotEmpty
+              ? mergedFiles
+              : localModel.modelFiles,
+          inputSize: existing.inputSize,
+          confidenceThreshold: existing.confidenceThreshold,
         );
         continue;
       }
@@ -455,19 +665,31 @@ class ModelService extends ChangeNotifier {
         isAvailableInApi: false,
         isDownloaded: true,
         downloadUrl: null,
-        isSelected: false,
       );
     }
 
     return merged.values.toList()..sort(_compareModels);
   }
 
+  List<AvailableModelPreview> _supportedModels(
+    List<AvailableModelPreview> models,
+  ) {
+    return models
+        .where((model) => model.isPipeline && !_isRemovedModel(model))
+        .toList();
+  }
+
+  bool _isRemovedModel(AvailableModelPreview model) {
+    return _removedModelNames.contains(model.name) ||
+        model.path.endsWith('yolo_all.tflite');
+  }
+
   String _modelKey(AvailableModelPreview model) {
-    return '${model.name}::${model.version}';
+    return model.name;
   }
 
   bool _isSameModel(AvailableModelPreview a, AvailableModelPreview b) {
-    return a.name == b.name && a.version == b.version;
+    return a.name == b.name;
   }
 
   int _compareModels(AvailableModelPreview a, AvailableModelPreview b) {
@@ -488,6 +710,117 @@ class ModelService extends ChangeNotifier {
     return '$safeName.tflite';
   }
 
+  String _safeModelDirectoryName(AvailableModelPreview model) {
+    return '${model.name}_${model.version}'
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  String _safeFileName(String path) {
+    return path.split(Platform.pathSeparator).last.split('/').last;
+  }
+
+  Future<bool> _allModelFilesExist(
+    Map<String, AvailableModelFile> files,
+  ) async {
+    if (files.isEmpty) {
+      return false;
+    }
+
+    for (final file in files.values) {
+      if (!await File(file.path).exists()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _modelStorageExists(AvailableModelPreview model) async {
+    if (model.modelFiles.isNotEmpty) {
+      return _allModelFilesExist(model.modelFiles);
+    }
+
+    return File(model.path).exists();
+  }
+
+  Map<int, Object> _emptyOutputs(Interpreter interpreter) {
+    final outputTensors = interpreter.getOutputTensors();
+    return <int, Object>{
+      for (var index = 0; index < outputTensors.length; index++)
+        index: ModelInputConverter.emptyTensorData(
+          outputTensors[index].shape,
+          outputTensors[index].type,
+        ),
+    };
+  }
+
+  Rect _expandedRect(Rect rect, {required double margin}) {
+    final dx = rect.width * margin;
+    final dy = rect.height * margin;
+    return Rect.fromLTRB(
+      (rect.left - dx).clamp(0.0, 1.0),
+      (rect.top - dy).clamp(0.0, 1.0),
+      (rect.right + dx).clamp(0.0, 1.0),
+      (rect.bottom + dy).clamp(0.0, 1.0),
+    );
+  }
+
+  String _labelForClass(AvailableModelPreview model, int classIndex) {
+    if (classIndex >= 0 && classIndex < model.labels.length) {
+      return model.labels[classIndex];
+    }
+    return 'Znak ${classIndex + 1}';
+  }
+
+  InterpreterOptions _interpreterOptions() {
+    return InterpreterOptions()..threads = 2;
+  }
+
+  void _closeInterpreters() {
+    _detectorInterpreter?.close();
+    _classifierInterpreter?.close();
+    _detectorInterpreter = null;
+    _classifierInterpreter = null;
+  }
+
+  Map<String, dynamic> _toRegistryEntry(AvailableModelPreview model) {
+    return model
+        .copyWith(
+          downloadUrl: null,
+          isAvailableInApi: false,
+          hasUpdate: false,
+          modelFiles: model.modelFiles.map(
+            (role, file) => MapEntry(role, file.copyWith(downloadUrl: '')),
+          ),
+        )
+        .toJson();
+  }
+
+  Future<void> _updateSelectedInRegistry(AvailableModelPreview model) async {
+    var entries = await _readRegistryRaw();
+    final hasEntry = entries.any((entry) => entry['name'] == model.name);
+
+    if (!hasEntry) {
+      entries = [
+        ...entries,
+        _toRegistryEntry(
+          model.copyWith(
+            isDownloaded: true,
+            isSelected: true,
+            downloadUrl: null,
+          ),
+        ),
+      ];
+    }
+
+    entries = entries
+        .map((entry) => {...entry, 'isSelected': entry['name'] == model.name})
+        .toList();
+    await _writeRegistryRaw(entries);
+  }
+
   void _replaceModel(
     AvailableModelPreview oldModel,
     AvailableModelPreview newModel,
@@ -505,24 +838,4 @@ class ModelService extends ChangeNotifier {
     _isBusy = value;
     notifyListeners();
   }
-
-  static const _fallbackModels = [
-    AvailableModelPreview(
-      name: 'Traffic Sign Detector',
-      version: 'v1.0.0',
-      path: 'assets/models/traffic_sign_detector.tflite',
-      isDownloaded: false,
-      isSelected: true,
-      labels: [
-        'Ograniczenie predkosci',
-        'Zakaz wjazdu',
-        'Stop',
-        'Ustap pierwszenstwa',
-        'Przejscie dla pieszych',
-        'Nakaz jazdy prosto',
-      ],
-      inputSize: 320,
-      confidenceThreshold: 0.45,
-    ),
-  ];
 }

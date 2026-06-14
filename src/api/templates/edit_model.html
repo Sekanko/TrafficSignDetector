@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title</title>
+  <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+  <main class="edit-layout">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Edycja detektora</p>
+        <h1>$model_name</h1>
+      </div>
+      <a class="ghost-link" href="/admin">Wróć</a>
+    </header>
+
+    <section class="panel">
+      <p class="hint">Zmiana wersji przy tej samej nazwie sprawi, że Flutter pokaże model jako wymagający aktualizacji, jeśli na telefonie jest zapisana starsza wersja.</p>
+
+      <form action="/admin/models/$model_id/edit" method="post" enctype="multipart/form-data">
+        <div class="grid">
+          <div>
+            <label>Nazwa detektora</label>
+            <input name="name" value="$model_name" required>
+          </div>
+          <div>
+            <label>Wersja</label>
+            <input name="version" value="$model_version" required>
+          </div>
+          <div>
+            <label>Próg pewności</label>
+            <input name="confidence_threshold" type="number" step="0.01" min="0" max="1" value="$confidence">
+          </div>
+          <div>
+            <label>Wejście detekcji</label>
+            <input name="detector_input_size" type="number" min="1" value="$detector_input">
+          </div>
+          <div>
+            <label>Wejście klasyfikacji</label>
+            <input name="classifier_input_size" type="number" min="1" value="$classifier_input">
+          </div>
+        </div>
+
+        <label>Podmień model detekcji YOLO (.tflite, opcjonalnie)</label>
+        <input name="detector_file" type="file" accept=".tflite">
+
+        <label>Podmień model klasyfikacji (.tflite, opcjonalnie)</label>
+        <input name="classifier_file" type="file" accept=".tflite">
+
+        <button type="submit">Zapisz zmiany</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
