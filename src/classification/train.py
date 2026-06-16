@@ -16,13 +16,14 @@ import json
 import time
 from datetime import datetime
 
+import pandas as pd
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
-from src.classification.dataset import load_splits
+from src.classification.dataset import ManifestDataset, load_splits
 from src.classification.models import HAS_PRETRAINED, MODEL_NAMES, build_model
 from src.data_prep.paths import CLASSIFICATION_DIR, PROJECT_ROOT
 from src.data_prep.taxonomy import load_taxonomy
@@ -32,6 +33,42 @@ SEED = 67
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
+
+
+def balance_dataset_to_mean(dataset: ManifestDataset, seed: int) -> tuple[ManifestDataset, dict]:
+    counts = dataset.df["taxonomy_id"].value_counts().sort_index()
+    target_count = round(float(counts.mean()))
+
+    balanced_parts = []
+    per_class = {}
+    for class_id, count in counts.items():
+        replace = count < target_count
+        sampled = dataset.df[dataset.df["taxonomy_id"] == class_id].sample(
+            n=target_count,
+            replace=replace,
+            random_state=seed + int(class_id),
+        )
+        balanced_parts.append(sampled)
+        per_class[str(int(class_id))] = {
+            "original": int(count),
+            "balanced": int(target_count),
+            "mode": "over_sampled" if replace else "under_sampled" if count > target_count else "unchanged",
+        }
+
+    balanced_df = pd.concat(balanced_parts, ignore_index=True).sample(frac=1.0, random_state=seed)
+    balanced_dataset = ManifestDataset(balanced_df, dataset.root, dataset.transform)
+    summary = {
+        "strategy": "over_under_sample_to_train_class_mean",
+        "target_count_per_class": int(target_count),
+        "original_total": int(len(dataset)),
+        "balanced_total": int(len(balanced_dataset)),
+        "original_min_class_count": int(counts.min()),
+        "original_max_class_count": int(counts.max()),
+        "original_mean_class_count": float(counts.mean()),
+        "num_classes_present": int(len(counts)),
+        "per_class": per_class,
+    }
+    return balanced_dataset, summary
 
 
 def build_transforms(img_size: int, augment: bool = True) -> tuple[transforms.Compose, transforms.Compose]:
@@ -114,6 +151,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--augment", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--balance-to-mean",
+        action="store_true",
+        help="Over-sample classes below the train mean and under-sample classes above it",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
@@ -127,6 +169,10 @@ def main() -> None:
 
     train_tf, eval_tf = build_transforms(args.img_size, augment=args.augment)
     datasets = load_splits(CLASSIFICATION_DIR, train_tf, eval_tf)
+    balance_summary = None
+    if args.balance_to_mean:
+        datasets["train"], balance_summary = balance_dataset_to_mean(datasets["train"], SEED)
+
     loaders = {
         split: DataLoader(
             ds,
@@ -188,6 +234,8 @@ def main() -> None:
         "learning_rate": args.lr,
         "optimizer": args.optimizer,
         "augment": args.augment,
+        "sampling": "over_under_to_mean" if args.balance_to_mean else "natural",
+        "sampling_summary": balance_summary,
         "weight_decay": args.weight_decay,
         "momentum": args.momentum if args.optimizer == "sgd" else None,
         "seed": SEED,
@@ -215,6 +263,7 @@ def main() -> None:
     print()
     print("=" * 60)
     print(f"Model:          {args.model} (pretrained={pretrained}, augment={args.augment})")
+    print(f"Sampling:       {'over/under to mean' if args.balance_to_mean else 'natural'}")
     print(f"Epochs:         {args.epochs}")
     print(f"Learning rate:  {args.lr}")
     print(f"Optimizer:      {optimizer_desc}")
